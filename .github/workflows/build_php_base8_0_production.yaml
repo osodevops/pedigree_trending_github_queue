@@ -1,34 +1,40 @@
 name: Build & Push PHP-Base 8.0 Image Production
 on:
   push:
-    branches: 
+    branches:
       - 'php8'
     paths:
-      - './docker/app/php-base/8.0/**'
+      - 'docker/app/php-base/8.0/**'
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
     - name: Setup PHP
-      uses: shivammathur/setup-php@v2
+      uses: shivammathur/setup-php@fcafdd6392932010c2bd5094439b8e33be2a8a09 # v2.37.0
       with:
         php-version: '8.0'
 
-    - name: Build Docker image and Push to ECR
-      uses: kciter/aws-ecr-action@master
-      env:
-        repo: pedigree/php-base
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
       with:
-        access_key_id: ${{ secrets.OSO_PROD_AWS_ACCESS_KEY_ID }}
-        secret_access_key: ${{ secrets.OSO_PROD_AWS_SECRET_ACCESS_KEY }}
-        account_id: ${{ secrets.OSO_PROD_AWS_ACCOUNT_ID }}
-        dockerfile: ./docker/app/php-base/8.0/Dockerfile
-        path: ./
-        repo: ${{ env.repo }}
-        region: eu-west-2
-        tags: 8.0
-        create_repo: false
+        aws-access-key-id: ${{ secrets.OSO_PROD_AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.OSO_PROD_AWS_SECRET_ACCESS_KEY }}
+        aws-region: eu-west-2
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@f2e9fc6c2b355c1890b65e6f6f0e2ac3e6e22f78 # v2.1.2
+
+    - name: Build and push Docker image to ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      run: |
+        docker build -f ./docker/app/php-base/8.0/Dockerfile -t $ECR_REGISTRY/pedigree/php-base:8.0 .
+        docker push $ECR_REGISTRY/pedigree/php-base:8.0
